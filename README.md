@@ -75,4 +75,10 @@ remote folder should contain separate script files for database backup and file 
 ---------
  files should be named backup-mysql.sh, and backup-folders.sh. Entire backup should be a single zip file. Remove all unused code and files. For transfering files use rsync and not scp.
 
+---------
+
+todo:
+
+mysql runs in docker
+
 apply all of these changes directly to the code
