@@ -38,6 +38,10 @@ BACKUP_RETENTION_DAILY=3
 BACKUP_RETENTION_WEEKLY=2
 BACKUP_RETENTION_MONTHLY=2
 
+# Todo: 
+# validate config function
+# add logging
+
 # ------------- Logic ---------------
 
 BACKUP_DAILY=$(( BACKUP_RETENTION_DAILY > 0 ))
