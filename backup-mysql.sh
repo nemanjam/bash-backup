@@ -35,12 +35,13 @@ elif [[ ( $DAY_WEEK -lt 7 ) && ( $BACKUP_DAILY == true ) ]];
         FREQ='daily'
 fi
 
-DATE=$FREQ-$(date +"%Y%m%d")
+DATE=$(date +"%Y-%m-%d")
+ZIP_SUFFIX="$FREQ-$DATE"
 
 function local_only
 {
-	mysqldump -u$USER -p$PASS $DB_NAME  | gzip > "$LOCAL_BACKUP_DIR/$ZIP_PREFIX-$DB_NAME-$DATE.sql.gz"
-
+	mysqldump -u$USER -p$PASS $DB_NAME  | gzip > "$LOCAL_BACKUP_DIR/$ZIP_PREFIX-$DB_NAME-$ZIP_SUFFIX.sql.gz"
+	
 	cd $LOCAL_BACKUP_DIR/
 
 	ls -t | grep "$ZIP_PREFIX" | grep $DB_NAME | grep daily | sed -e 1,"$BACKUP_RETENTION_DAILY"d | xargs -d '\n' rm -R > /dev/null 2>&1

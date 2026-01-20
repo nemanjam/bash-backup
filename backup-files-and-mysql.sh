@@ -1,5 +1,22 @@
 #!/bin/bash
 
+#  Backup folder structure:
+# 
+# mybb/
+# └─ backup/
+#    ├─ scripts/
+#    │  ├─ backup-files-and-mysql.sh         - versioned
+#    │  └─ backup-files-and-mysql-run.sh     - this script
+#    └─ data/
+#       ├─ mybb_files_and_mysql-daily-2026-01-20.zip
+#       │  ├─ inc/
+#       │  ├─ images/custom/
+#       │  └─ mysql_database/
+#       │     └─ mybb.sql
+#       ├─ mybb_files_and_mysql-daily-2026-01-19.zip
+#       ├─ mybb_files_and_mysql-weekly-2026-01-14.zip
+#       └─ mybb_files_and_mysql-monthly-2026-01-01.zip
+
 # ---------- Configuration ----------
 
 # MySQL credentials
@@ -42,10 +59,11 @@ elif [[ ( $DAY_WEEK -lt 7 ) && ( $BACKUP_DAILY == true ) ]];
     FREQ='daily'
 fi
 
-DATE=$FREQ-$(date +"%Y%m%d")
+DATE=$(date +"%Y-%m-%d")
+ZIP_SUFFIX="$FREQ-$DATE"
 
 function local_only {
-    ZIP_PATH="$LOCAL_BACKUP_DIR/$ZIP_PREFIX-$DATE.zip"
+    ZIP_PATH="$LOCAL_BACKUP_DIR/$ZIP_PREFIX-$ZIP_SUFFIX.zip"
     ZIP_SOURCES=()
 
     TEMP_DB_DIR="$LOCAL_BACKUP_DIR/$MYSQL_DIR"

@@ -36,10 +36,11 @@ elif [[ ( $DAY_WEEK -lt 7 ) && ( $BACKUP_DAILY == true ) ]];
     FREQ='daily'
 fi
 
-DATE=$FREQ-$(date +"%Y%m%d")
+DATE=$(date +"%Y-%m-%d")
+ZIP_SUFFIX="$FREQ-$DATE"
 
 function local_only {
-    ZIP_PATH="$LOCAL_BACKUP_DIR/$ZIP_PREFIX-$DATE.zip"
+    ZIP_PATH="$LOCAL_BACKUP_DIR/$ZIP_PREFIX-$ZIP_SUFFIX.zip"
     ZIP_SOURCES=()
 
     for SRC_CODE_DIR in "${!SRC_CODE_DIRS[@]}"; do
