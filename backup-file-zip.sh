@@ -3,12 +3,13 @@
 # ---------- Configuration ----------
 
 declare -A SRC_CODE_DIRS=(
-    ["project"]="/var/www/html"
-    ["blog"]="/var/www/blog"
-    ["docs"]="/var/www/docs"
+    ["inc"]="inc"
+    ["images/custom"]="images/custom"
 )
 
-LOCAL_BACKUP_DIR="/home/user/backup"
+# script located at /home/username/traefik-proxy/apps/mybb/backup/scripts"
+LOCAL_BACKUP_DIR="../data"
+ZIP_NAME="mybb_code"
 
 BACKUP_RETENTION_DAILY=3
 BACKUP_RETENTION_WEEKLY=2
@@ -38,21 +39,26 @@ fi
 DATE=$FREQ-$(date +"%Y%m%d")
 
 function local_only {
+    ZIP_PATH="$LOCAL_BACKUP_DIR/$ZIP_NAME-$DATE.zip"
+    ZIP_SOURCES=()
+
     for SRC_CODE_DIR in "${!SRC_CODE_DIRS[@]}"; do
         SRC_CODE_DIR_PATH="${SRC_CODE_DIRS[$SRC_CODE_DIR]}"
-
-        # Zip the source directory
-        zip -r "$LOCAL_BACKUP_DIR/$SRC_CODE_DIR-htdocs-$DATE.zip" "$SRC_CODE_DIR_PATH" -x "*wp-content/uploads*"
-
-        # Move to backup directory
-        cd "$LOCAL_BACKUP_DIR/" || return 1
-
-        # Prune old backups based on retention
-        ls -t | grep "$SRC_CODE_DIR" | grep htdocs | grep daily | sed -e 1,"$BACKUP_RETENTION_DAILY"d | xargs -d '\n' rm -R > /dev/null 2>&1
-        ls -t | grep "$SRC_CODE_DIR" | grep htdocs | grep weekly | sed -e 1,"$BACKUP_RETENTION_WEEKLY"d | xargs -d '\n' rm -R > /dev/null 2>&1
-        ls -t | grep "$SRC_CODE_DIR" | grep htdocs | grep monthly | sed -e 1,"$BACKUP_RETENTION_MONTHLY"d | xargs -d '\n' rm -R > /dev/null 2>&1
+        ZIP_SOURCES+=("$SRC_CODE_DIR_PATH")
     done
+
+    # Zip all source directories into a single zip
+    zip -r "$ZIP_PATH" "${ZIP_SOURCES[@]}"
+
+    # Move to backup directory
+    cd "$LOCAL_BACKUP_DIR/"
+
+    # Prune old backups based on retention
+	ls -t | grep "$ZIP_NAME" | grep daily | sed -e 1,"$BACKUP_RETENTION_DAILY"d | xargs -d '\n' rm -R > /dev/null 2>&1
+    ls -t | grep "$ZIP_NAME" | grep weekly | sed -e 1,"$BACKUP_RETENTION_WEEKLY"d | xargs -d '\n' rm -R > /dev/null 2>&1
+    ls -t | grep "$ZIP_NAME" | grep monthly | sed -e 1,"$BACKUP_RETENTION_MONTHLY"d | xargs -d '\n' rm -R > /dev/null 2>&1
 }
+
 
 if [[ ( $BACKUP_DAILY == true ) && ( ! -z "$BACKUP_RETENTION_DAILY" ) && ( $BACKUP_RETENTION_DAILY -ne 0 ) && ( $FREQ == daily ) ]]; then
     local_only
