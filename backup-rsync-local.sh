@@ -82,10 +82,12 @@ check_file_size() {
 # ---------- Validation ----------
 
 is_valid() {
-    local backup_type file
-
+	# Local variables
     local -A remote_lists local_lists
+    local remote_all_files local_all_files
 
+	# Loop variables
+    local backup_type
     local remote_list local_list
     local remote_count local_count
     local remote_latest local_latest
@@ -94,18 +96,16 @@ is_valid() {
     check_file_size || return 1
 
     # Store remote backup filenames in a variable and split
-    local remote_all_files
     remote_all_files=$(ssh "$REMOTE_HOST" \
         "ls -1 $REMOTE_DATA_DIR/${ZIP_PREFIX}-*.zip 2>/dev/null")
     split_backup_types "$remote_all_files" remote_lists
 
     # Store local backup filenames in a variable and split
-    local local_all_files
     local_all_files=$(ls -1 "$LOCAL_DATA_DIR/${ZIP_PREFIX}-*.zip" 2>/dev/null)
     split_backup_types "$local_all_files" local_lists
 
     for backup_type in daily weekly monthly; do
-
+		# Set filename lists
         remote_list="${remote_lists[$backup_type]}"
         local_list="${local_lists[$backup_type]}"
 
@@ -128,13 +128,13 @@ is_valid() {
 # ---------- Sync ----------
 
 if is_valid; then
-    echo "Remote backup valid — syncing data"
+    echo "Remote backup valid - syncing data"
 
     # Mirror remote data directory locally
     rsync -av --delete \
         "$REMOTE_HOST:$REMOTE_DATA_DIR/" \
         "$LOCAL_DATA_DIR/"
 else
-    echo "Backup validation failed — aborting"
+    echo "Backup validation failed - aborting"
     exit 1
 fi
