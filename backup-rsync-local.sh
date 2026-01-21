@@ -23,8 +23,8 @@
 # ---------- Configuration ----------
 
 REMOTE_HOST="arm2"
-REMOTE_DATA_DIR="~/traefik-proxy/apps/mybb/backup/data"
-LOCAL_DATA_DIR="../data"
+REMOTE_BACKUP_DIR="~/traefik-proxy/apps/mybb/backup/data"
+LOCAL_BACKUP_DIR="../data"
 
 # Must match backup-files-and-mysql.sh
 ZIP_PREFIX="mybb_files_and_mysql"
@@ -84,7 +84,7 @@ check_file_size() {
     local bad_file
 
     bad_file=$(ssh "$REMOTE_HOST" "
-        for f in $REMOTE_DATA_DIR/${ZIP_PREFIX}-*.zip; do
+        for f in $REMOTE_BACKUP_DIR/${ZIP_PREFIX}-*.zip; do
             [ -f \"\$f\" ] || continue
             size=\$(stat -c %s \"\$f\")
             if (( size < $MIN_BACKUP_SIZE_BYTES )); then
@@ -120,11 +120,11 @@ is_valid() {
     fi
 
     # Store remote backup filenames in a variable and split
-    remote_all_files=$(ssh "$REMOTE_HOST" "ls -1 $REMOTE_DATA_DIR/${ZIP_PREFIX}-*.zip 2>/dev/null")
+    remote_all_files=$(ssh "$REMOTE_HOST" "ls -1 $REMOTE_BACKUP_DIR/${ZIP_PREFIX}-*.zip 2>/dev/null")
     split_backup_types "$remote_all_files" remote_lists
 
     # Store local backup filenames in a variable and split
-    local_all_files=$(ls -1 "$LOCAL_DATA_DIR/${ZIP_PREFIX}-*.zip" 2>/dev/null)
+    local_all_files=$(ls -1 "$LOCAL_BACKUP_DIR/${ZIP_PREFIX}-*.zip" 2>/dev/null)
     split_backup_types "$local_all_files" local_lists
 
     for backup_type in daily weekly monthly; do
@@ -160,11 +160,13 @@ if ! is_valid; then
     exit 1
 fi
 
+# Note: no fallback logic for now
+
 echo "Remote backup valid - syncing data"
 
 # Mirror remote data directory locally
 rsync -av --delete \
-    "$REMOTE_HOST:$REMOTE_DATA_DIR/" \
-    "$LOCAL_DATA_DIR/"
+    "$REMOTE_HOST:$REMOTE_BACKUP_DIR/" \
+    "$LOCAL_BACKUP_DIR/"
 
 echo "Backup sync complete"
