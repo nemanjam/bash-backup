@@ -151,14 +151,17 @@ is_valid() {
 
 # ---------- Sync ----------
 
-if is_valid; then
-    echo "Remote backup valid - syncing data"
-
-    # Mirror remote data directory locally
-    rsync -av --delete \
-        "$REMOTE_HOST:$REMOTE_DATA_DIR/" \
-        "$LOCAL_DATA_DIR/"
-else
+# Exit early if remote backup is not valid
+if ! is_valid; then
     echo "Backup validation failed - aborting"
     exit 1
 fi
+
+echo "Remote backup valid - syncing data"
+
+# Mirror remote data directory locally
+rsync -av --delete \
+    "$REMOTE_HOST:$REMOTE_DATA_DIR/" \
+    "$LOCAL_DATA_DIR/"
+
+echo "Backup sync complete"
