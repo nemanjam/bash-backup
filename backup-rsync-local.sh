@@ -20,6 +20,20 @@ get_latest_date() {
         | sort | tail -n 1
 }
 
+# Split a list of filenames into daily/weekly/monthly assoc array
+split_backup_types() {
+    local files="$1"
+    declare -n arr=$2  # pass assoc array by name
+
+    while IFS= read -r file; do
+        case "$file" in
+            *-daily-*.zip)   arr[daily]+="$file"$'\n' ;;
+            *-weekly-*.zip)  arr[weekly]+="$file"$'\n' ;;
+            *-monthly-*.zip) arr[monthly]+="$file"$'\n' ;;
+        esac
+    done <<< "$files"
+}
+
 # Ensure remote has at least as many backups as local
 check_count() {
     local remote_count="$1"
@@ -46,11 +60,10 @@ check_date() {
 
 # Ensure all remote backups are larger than minimum size
 check_file_size() {
-    local backup_type="$1"
-
     local bad_file
+
     bad_file=$(ssh "$REMOTE_HOST" "
-        for f in $REMOTE_DATA_DIR/${ZIP_PREFIX}-${backup_type}-*.zip; do
+        for f in $REMOTE_DATA_DIR/${ZIP_PREFIX}-*.zip; do
             [ -f \"\$f\" ] || continue
             size=\$(stat -c %s \"\$f\")
             if (( size < $MIN_BACKUP_SIZE_BYTES )); then
@@ -69,29 +82,44 @@ check_file_size() {
 # ---------- Validation ----------
 
 is_valid() {
-    local backup_type
+    local backup_type file
+
+    local -A remote_lists local_lists
+
     local remote_list local_list
     local remote_count local_count
     local remote_latest local_latest
 
+    # Global size validation (run once)
+    check_file_size || return 1
+
+    # Store remote backup filenames in a variable and split
+    local remote_all_files
+    remote_all_files=$(ssh "$REMOTE_HOST" \
+        "ls -1 $REMOTE_DATA_DIR/${ZIP_PREFIX}-*.zip 2>/dev/null")
+    split_backup_types "$remote_all_files" remote_lists
+
+    # Store local backup filenames in a variable and split
+    local local_all_files
+    local_all_files=$(ls -1 "$LOCAL_DATA_DIR/${ZIP_PREFIX}-*.zip" 2>/dev/null)
+    split_backup_types "$local_all_files" local_lists
+
     for backup_type in daily weekly monthly; do
 
-        # Fetch remote and local file lists once per type
-        remote_list=$(ssh "$REMOTE_HOST" \
-            "ls -1 $REMOTE_DATA_DIR/${ZIP_PREFIX}-${backup_type}-*.zip 2>/dev/null")
+        remote_list="${remote_lists[$backup_type]}"
+        local_list="${local_lists[$backup_type]}"
 
-        local_list=$(ls -1 "$LOCAL_DATA_DIR/${ZIP_PREFIX}-${backup_type}-*.zip" 2>/dev/null)
-
+		# Check counts
         remote_count=$(echo "$remote_list" | grep -c . || true)
         local_count=$(echo "$local_list" | grep -c . || true)
 
         check_count "$remote_count" "$local_count" "$backup_type" || return 1
 
+		# Check latest dates
         remote_latest=$(echo "$remote_list" | get_latest_date)
         local_latest=$(echo "$local_list" | get_latest_date)
 
         check_date "$remote_latest" "$local_latest" "$backup_type" || return 1
-        check_file_size "$backup_type" || return 1
     done
 
     return 0
