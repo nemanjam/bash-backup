@@ -122,6 +122,20 @@ check_date() {
     fi
 }
 
+# Convert bytes to human-readable format
+bytes_to_human() {
+    local size=$1
+    if (( size < 1024 )); then
+        echo "${size}B"
+    elif (( size < 1024*1024 )); then
+        echo "$((size/1024))KB"
+    elif (( size < 1024*1024*1024 )); then
+        echo "$((size/1024/1024))MB"
+    else
+        echo "$((size/1024/1024/1024))GB"
+    fi
+}
+
 # Ensure all remote backups are larger than minimum size
 check_file_size() {
     local bad_file bad_file_size
@@ -138,21 +152,21 @@ check_file_size() {
 
     # Iterate over each line in the variable
     while read -r remote_file size; do
-        echo "[INFO] Remote file: $remote_file, size=${size}B"
+        echo "[INFO] Remote file: $remote_file, size=$(bytes_to_human $size)"
 
         if (( size < MIN_BACKUP_SIZE_BYTES )); then
             bad_file="$remote_file"
-			bad_file_size="$size"
+            bad_file_size="$size"
             break
         fi
     done <<< "$remote_files_info"
 
-	if [[ -n "$bad_file" ]]; then
- 		echo "ERROR: remote backup file too small: $bad_file, size=${bad_file_size}B, min=${MIN_BACKUP_SIZE_BYTES}B"
-		return 1
-	fi
+    if [[ -n "$bad_file" ]]; then
+        echo "ERROR: remote backup file too small: $bad_file, size=$(bytes_to_human $bad_file_size), min=$(bytes_to_human $MIN_BACKUP_SIZE_BYTES)"
+        return 1
+    fi
 
-    echo "[INFO] All remote backup files meet minimum size ($MIN_BACKUP_SIZE_BYTES B)"
+    echo "[INFO] All remote backup files meet minimum size: $(bytes_to_human $MIN_BACKUP_SIZE_BYTES)"
     return 0
 }
 
