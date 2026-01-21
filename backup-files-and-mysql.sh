@@ -40,6 +40,7 @@ MYSQL_ZIP_DIR="mysql_database"
 ZIP_PREFIX="mybb_files_and_mysql"
 
 # Retention
+MAX_RETENTION=5
 BACKUP_RETENTION_DAILY=3
 BACKUP_RETENTION_WEEKLY=2
 BACKUP_RETENTION_MONTHLY=2
@@ -54,41 +55,64 @@ is_valid_config() {
     local SCRIPT_DIR
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-    local MAX_RETENTION=5
     local non_zero_found=0
 
     # Check that MySQL container is running
-    docker inspect -f '{{.State.Running}}' "$DB_CONTAINER_NAME" 2>/dev/null | grep -q true \
-        || return 1
+    if ! docker inspect -f '{{.State.Running}}' "$DB_CONTAINER_NAME" 2>/dev/null | grep -q true; then
+        echo "[ERROR] MySQL container not running or not found: DB_CONTAINER_NAME=$DB_CONTAINER_NAME" >&2
+        return 1
+    fi
 
     # Check MySQL connectivity inside container
-    docker exec "$DB_CONTAINER_NAME" \
-        mysql -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" -e "SELECT 1;" >/dev/null 2>&1 \
-        || return 1
+    if ! docker exec "$DB_CONTAINER_NAME" \
+        mysql -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" -e "SELECT 1;" >/dev/null 2>&1; then
+        echo "[ERROR] MySQL connection failed: container=$DB_CONTAINER_NAME user=$DB_USER db=$DB_NAME" >&2
+        return 1
+    fi
 
     # Check local backup directory exists
-    [ -d "$SCRIPT_DIR/$LOCAL_BACKUP_DIR" ] || return 1
+    if [ ! -d "$SCRIPT_DIR/$LOCAL_BACKUP_DIR" ]; then
+        echo "[ERROR] Local backup directory missing: path=$SCRIPT_DIR/$LOCAL_BACKUP_DIR" >&2
+        return 1
+    fi
 
     # Check source code directories exist
     for dir in "${SRC_CODE_DIRS[@]}"; do
-        [ -d "$SCRIPT_DIR/$LOCAL_BACKUP_DIR/$dir" ] || return 1
+        if [ ! -d "$SCRIPT_DIR/$LOCAL_BACKUP_DIR/$dir" ]; then
+            echo "[ERROR] Source directory missing: path=$SCRIPT_DIR/$LOCAL_BACKUP_DIR/$dir" >&2
+            return 1
+        fi
     done
 
     # Validate retention values
     for var in BACKUP_RETENTION_DAILY BACKUP_RETENTION_WEEKLY BACKUP_RETENTION_MONTHLY; do
         value="${!var}"
 
-        [[ "$value" =~ ^[0-9]+$ ]] || return 1
-        (( value < MAX_RETENTION )) || return 1
+        if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+            echo "[ERROR] Retention value is not a number: $var=$value" >&2
+            return 1
+        fi
+
+        if (( value >= MAX_RETENTION )); then
+            echo "[ERROR] Retention value too large: $var=$value (max=$((MAX_RETENTION - 1)))" >&2
+            return 1
+        fi
 
         (( value > 0 )) && non_zero_found=1
     done
 
-    (( non_zero_found == 1 )) || return 1
+    if (( non_zero_found == 0 )); then
+        echo "[ERROR] All retention values are zero: daily=$BACKUP_RETENTION_DAILY weekly=$BACKUP_RETENTION_WEEKLY monthly=$BACKUP_RETENTION_MONTHLY" >&2
+        return 1
+    fi
 
     return 0
 }
 
+if ! is_valid_config; then
+    echo "[ERROR] Configuration validation failed. Aborting backup." >&2
+    exit 1
+fi
 
 # ------------- Logic ---------------
 
