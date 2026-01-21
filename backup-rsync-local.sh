@@ -1,11 +1,29 @@
 #!/bin/bash
 
+#  Local backup folder structure:
+# 
+# mybb/
+# └─ backup/
+#    ├─ scripts/
+#    │  └─ backup-rsync-local.sh     - this script
+#    └─ data/
+#       ├─ mybb_files_and_mysql-daily-2026-01-20.zip
+#       │  ├─ inc/
+#       │  ├─ images/custom/
+#       │  └─ mysql_database/
+#       │     └─ mybb.sql
+#       ├─ mybb_files_and_mysql-daily-2026-01-19.zip
+#       ├─ mybb_files_and_mysql-weekly-2026-01-14.zip
+#       └─ mybb_files_and_mysql-monthly-2026-01-01.zip
+
+
 # ---------- Configuration ----------
 
 REMOTE_HOST="arm2"
 REMOTE_DATA_DIR="~/traefik-proxy/apps/mybb/backup/data"
-LOCAL_DATA_DIR="$HOME/backups/mybb/data"
+LOCAL_DATA_DIR="../data"
 
+# Must match backup-files-and-mysql.sh
 ZIP_PREFIX="mybb_files_and_mysql"
 
 # Minimum valid backup size

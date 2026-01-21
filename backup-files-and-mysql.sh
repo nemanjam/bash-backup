@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#  Backup folder structure:
+#  Remote backup folder structure:
 # 
 # mybb/
 # └─ backup/
