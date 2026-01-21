@@ -128,6 +128,7 @@ MONTH=$(date +%d)
 DAY_WEEK=$(date +%u)
 
 # ! $FREQ calculated only once, this is wrong
+# create only daily backup and copy and rename for other frequencies
 if [[ ( $MONTH -eq 1 ) && ( $BACKUP_MONTHLY == true ) ]];
         then
     FREQ='monthly'
