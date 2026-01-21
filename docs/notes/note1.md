@@ -129,74 +129,47 @@ DESTINATION=""
 # Sync source data into the calculated bucket directory using rsync.
 rsync -avh "$SOURCE" "$DESTINATION/$BUCKET_TYPE/$BUCKET"
 
+# ------------------
 
-i have remote backup folder with this structure
-# ~/traefik-proxy/apps/mybb/
+write me is_valid_config() bash function
 
-# mybb/
-# └─ backup/
-#    ├─ scripts/
-#    │  ├─ backup-files-and-mysql.sh         - versioned
-#    │  └─ backup-files-and-mysql-run.sh     - this script
-#    └─ data/
-#       ├─ mybb_files_and_mysql-daily-2026-01-20.zip
-#       │  ├─ inc/
-#       │  ├─ images/custom/
-#       │  └─ mysql_database/
-#       │     └─ mybb.sql
-#       ├─ mybb_files_and_mysql-daily-2026-01-19.zip
-#       ├─ mybb_files_and_mysql-weekly-2026-01-14.zip
-#       └─ mybb_files_and_mysql-monthly-2026-01-01.zip
+connect to mysql that runs inside this container and uses this vars
 
-i want to rsync it locally but first must validate that remote backup is valid
+# MySQL credentials
+USER=backup
+PASS=backup
+DB_NAME=project_sql
 
-you should write is_valid() function that will ssh and return boolean
+# container
+  database:
+    image: mysql:8.0
+    container_name: mybb-database
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data/mysql-data:/var/lib/mysql
+      - ./conf/mysql.cnf:/etc/mysql/conf.d/custom.cnf:ro
+    networks:
+      - default
 
-backup is valid if remote data folder has more or equal number for each type daily, weekly, monthly than local data folder and corespondent daily, weekly, monthly files are newer or equal than local files (use date from filename) and each file is larger than 1MB (size is configurable variable)
+validates that these folders on relative paths to script location exist
 
-local_ data folder is exact mirror of remote data folder 
+# Dirs paths
+# Local folder is root, all other paths are relative to it
+# script located at ~/traefik-proxy/apps/mybb/backup/scripts
+LOCAL_BACKUP_DIR="../data"
 
-local_ data folder and should not hoard old copies but delete them to match exactly remote data folder
+declare -A SRC_CODE_DIRS=(
+    ["inc"]="inc"
+    ["images/custom"]="images/custom"
+)
 
-if remote backup is valid rsync entire data folder
+validates that these vars are 0 or positive numbers less than 5 (configurable), and at least one is not 0
 
-if remote backup is not valid abort and print error message
-
-here is existing script for remote backup for reference:
--------
-
-define 3 util functions check_count(), check_date() and check_file_size() and apply them inside is_valid() to check backup validity
-
-extract "Extract latest date from filenames" logic into separate function and apply it
-
-rename var type into backup_type "for type in daily weekly monthly; do" and usages
-
-you should do this only once, not inside loop
-
-# List remote backups for given type
-remote_list=$(ssh "$REMOTE_HOST" \
-	"ls -1 $REMOTE_DATA_DIR/${ZIP_PREFIX}-${type}-*.zip 2>/dev/null")
-
-# List local backups for given type
-local_list=$(ls -1 "$LOCAL_DATA_DIR/${ZIP_PREFIX}-${type}-*.zip" 2>/dev/null)
-
-# Validate minimum file size on remote
-bad_file=$(ssh "$REMOTE_HOST" "
-	for f in $REMOTE_DATA_DIR/${ZIP_PREFIX}-${type}-*.zip; do
-		[ -f \"\$f\" ] || continue
-		size=\$(stat -c %s \"\$f\")
-		if (( size < $MIN_BACKUP_SIZE_BYTES )); then
-			echo \"\$f\"
-			exit 1
-		fi
-	done
-" || true)
-
-if [[ -n "$bad_file" ]]; then
-	echo "ERROR: remote backup too small: $bad_file"
-	return 1
-fi
-
-
+# Retention
+BACKUP_RETENTION_DAILY=3
+BACKUP_RETENTION_WEEKLY=2
+BACKUP_RETENTION_MONTHLY=2
 
 ```

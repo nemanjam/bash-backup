@@ -20,20 +20,26 @@
 # ---------- Configuration ----------
 
 # MySQL credentials
-USER=backup
-PASS=backup
-DB_NAME=project_sql
+DB_CONTAINER_NAME="mybb-database"
+DB_NAME="mybb"
+DB_USER="mybbuser"
+DB_PASS="password"
+
+# Dirs paths
+# Local folder is root, all other paths are relative to it
+# script located at ~/traefik-proxy/apps/mybb/backup/scripts
+LOCAL_BACKUP_DIR="../data"
 
 declare -A SRC_CODE_DIRS=(
     ["inc"]="inc"
     ["images/custom"]="images/custom"
 )
-MYSQL_DIR="mysql_database"
 
-# script located at ~/traefik-proxy/apps/mybb/backup/scripts"
-LOCAL_BACKUP_DIR="../data"
+# Zip vars
+MYSQL_ZIP_DIR="mysql_database"
 ZIP_PREFIX="mybb_files_and_mysql"
 
+# Retention
 BACKUP_RETENTION_DAILY=3
 BACKUP_RETENTION_WEEKLY=2
 BACKUP_RETENTION_MONTHLY=2
@@ -41,6 +47,48 @@ BACKUP_RETENTION_MONTHLY=2
 # Todo: 
 # validate config function
 # add success and error logging
+
+# ---------- Validate config ------------
+
+is_valid_config() {
+    local SCRIPT_DIR
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+    local MAX_RETENTION=5
+    local non_zero_found=0
+
+    # Check that MySQL container is running
+    docker inspect -f '{{.State.Running}}' "$DB_CONTAINER_NAME" 2>/dev/null | grep -q true \
+        || return 1
+
+    # Check MySQL connectivity inside container
+    docker exec "$DB_CONTAINER_NAME" \
+        mysql -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" -e "SELECT 1;" >/dev/null 2>&1 \
+        || return 1
+
+    # Check local backup directory exists
+    [ -d "$SCRIPT_DIR/$LOCAL_BACKUP_DIR" ] || return 1
+
+    # Check source code directories exist
+    for dir in "${SRC_CODE_DIRS[@]}"; do
+        [ -d "$SCRIPT_DIR/$LOCAL_BACKUP_DIR/$dir" ] || return 1
+    done
+
+    # Validate retention values
+    for var in BACKUP_RETENTION_DAILY BACKUP_RETENTION_WEEKLY BACKUP_RETENTION_MONTHLY; do
+        value="${!var}"
+
+        [[ "$value" =~ ^[0-9]+$ ]] || return 1
+        (( value < MAX_RETENTION )) || return 1
+
+        (( value > 0 )) && non_zero_found=1
+    done
+
+    (( non_zero_found == 1 )) || return 1
+
+    return 0
+}
+
 
 # ------------- Logic ---------------
 
@@ -70,11 +118,14 @@ function local_only {
     ZIP_PATH="$LOCAL_BACKUP_DIR/$ZIP_PREFIX-$ZIP_SUFFIX.zip"
     ZIP_SOURCES=()
 
-    TEMP_DB_DIR="$LOCAL_BACKUP_DIR/$MYSQL_DIR"
+    TEMP_DB_DIR="$LOCAL_BACKUP_DIR/$MYSQL_ZIP_DIR"
     mkdir -p "$TEMP_DB_DIR"
 
-    # Dump MySQL dump as plain .sql
-    mysqldump -u"$USER" -p"$PASS" "$DB_NAME" > "$TEMP_DB_DIR/$DB_NAME.sql"
+    # Dump MySQL dump as plain .sql, path is on host
+    docker exec "$DB_CONTAINER_NAME" \
+        sh -c 'mysqldump -u"$DB_USER" -p"$DB_PASS" "$DB_NAME"' \
+         > "$TEMP_DB_DIR/$DB_NAME.sql"
+
 
     # Add database
     ZIP_SOURCES+=("$TEMP_DB_DIR")
