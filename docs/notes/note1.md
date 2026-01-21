@@ -163,5 +163,40 @@ if remote backup is valid rsync entire data folder
 if remote backup is not valid abort and print error message
 
 here is existing script for remote backup for reference:
+-------
+
+define 3 util functions check_count(), check_date() and check_file_size() and apply them inside is_valid() to check backup validity
+
+extract "Extract latest date from filenames" logic into separate function and apply it
+
+rename var type into backup_type "for type in daily weekly monthly; do" and usages
+
+you should do this only once, not inside loop
+
+# List remote backups for given type
+remote_list=$(ssh "$REMOTE_HOST" \
+	"ls -1 $REMOTE_DATA_DIR/${ZIP_PREFIX}-${type}-*.zip 2>/dev/null")
+
+# List local backups for given type
+local_list=$(ls -1 "$LOCAL_DATA_DIR/${ZIP_PREFIX}-${type}-*.zip" 2>/dev/null)
+
+# Validate minimum file size on remote
+bad_file=$(ssh "$REMOTE_HOST" "
+	for f in $REMOTE_DATA_DIR/${ZIP_PREFIX}-${type}-*.zip; do
+		[ -f \"\$f\" ] || continue
+		size=\$(stat -c %s \"\$f\")
+		if (( size < $MIN_BACKUP_SIZE_BYTES )); then
+			echo \"\$f\"
+			exit 1
+		fi
+	done
+" || true)
+
+if [[ -n "$bad_file" ]]; then
+	echo "ERROR: remote backup too small: $bad_file"
+	return 1
+fi
+
+
 
 ```
