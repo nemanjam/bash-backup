@@ -130,4 +130,38 @@ DESTINATION=""
 rsync -avh "$SOURCE" "$DESTINATION/$BUCKET_TYPE/$BUCKET"
 
 
+i have remote backup folder with this structure
+# ~/traefik-proxy/apps/mybb/
+
+# mybb/
+# └─ backup/
+#    ├─ scripts/
+#    │  ├─ backup-files-and-mysql.sh         - versioned
+#    │  └─ backup-files-and-mysql-run.sh     - this script
+#    └─ data/
+#       ├─ mybb_files_and_mysql-daily-2026-01-20.zip
+#       │  ├─ inc/
+#       │  ├─ images/custom/
+#       │  └─ mysql_database/
+#       │     └─ mybb.sql
+#       ├─ mybb_files_and_mysql-daily-2026-01-19.zip
+#       ├─ mybb_files_and_mysql-weekly-2026-01-14.zip
+#       └─ mybb_files_and_mysql-monthly-2026-01-01.zip
+
+i want to rsync it locally but first must validate that remote backup is valid
+
+you should write is_valid() function that will ssh and return boolean
+
+backup is valid if remote data folder has more or equal number for each type daily, weekly, monthly than local data folder and corespondent daily, weekly, monthly files are newer or equal than local files (use date from filename) and each file is larger than 1MB (size is configurable variable)
+
+local_ data folder is exact mirror of remote data folder 
+
+local_ data folder and should not hoard old copies but delete them to match exactly remote data folder
+
+if remote backup is valid rsync entire data folder
+
+if remote backup is not valid abort and print error message
+
+here is existing script for remote backup for reference:
+
 ```
