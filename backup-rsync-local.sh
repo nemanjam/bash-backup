@@ -41,23 +41,32 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # ---------- Validate config ------------
 
 is_valid_config() {
+    echo "----------------------------------------"
+    echo "[INFO] Validating configuration"
+
     # Check SSH connectivity to remote host
     if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_HOST" "true" >/dev/null 2>&1; then
         echo "[ERROR] Cannot connect to remote host via SSH: REMOTE_HOST=$REMOTE_HOST" >&2
         return 1
     fi
+    echo "[OK] SSH connection established: REMOTE_HOST=$REMOTE_HOST"
 
     # Check remote backup directory exists
     if ! ssh "$REMOTE_HOST" "[ -d \"$REMOTE_BACKUP_DIR\" ]" >/dev/null 2>&1; then
         echo "[ERROR] Remote backup directory does not exist: REMOTE_HOST=$REMOTE_HOST REMOTE_BACKUP_DIR=$REMOTE_BACKUP_DIR" >&2
         return 1
     fi
+    echo "[OK] Remote backup directory exists: $REMOTE_BACKUP_DIR"
 
-    # Check local backup directory exists (relative to script location)
+    # Check local backup directory exists
     if [ ! -d "$SCRIPT_DIR/$LOCAL_BACKUP_DIR" ]; then
         echo "[ERROR] Local backup directory does not exist: path=$SCRIPT_DIR/$LOCAL_BACKUP_DIR" >&2
         return 1
     fi
+    echo "[OK] Local backup directory exists: $SCRIPT_DIR/$LOCAL_BACKUP_DIR"
+
+    echo "[INFO] Configuration validation successful"
+    echo "----------------------------------------"
 
     return 0
 }
@@ -115,28 +124,44 @@ check_date() {
 
 # Ensure all remote backups are larger than minimum size
 check_file_size() {
-    local bad_file
+    local bad_file bad_file_size
+    local remote_file size
+    local remote_files_info
 
-    bad_file=$(ssh "$REMOTE_HOST" "
+    # Store SSH output in a variable
+    remote_files_info=$(ssh "$REMOTE_HOST" "
         for f in $REMOTE_BACKUP_DIR/${ZIP_PREFIX}-*.zip; do
             [ -f \"\$f\" ] || continue
-            size=\$(stat -c %s \"\$f\")
-            if (( size < $MIN_BACKUP_SIZE_BYTES )); then
-                echo \"\$f\"
-                exit 1
-            fi
+            stat -c '%n %s' \"\$f\"
         done
-    " || true)
+    ")
 
-    if [[ -n "$bad_file" ]]; then
-        echo "ERROR: remote backup too small: $bad_file"
-        return 1
-    fi
+    # Iterate over each line in the variable
+    while read -r remote_file size; do
+        echo "[INFO] Remote file: $remote_file, size=${size}B"
+
+        if (( size < MIN_BACKUP_SIZE_BYTES )); then
+            bad_file="$remote_file"
+			bad_file_size="$size"
+            break
+        fi
+    done <<< "$remote_files_info"
+
+	if [[ -n "$bad_file" ]]; then
+ 		echo "ERROR: remote backup file too small: $bad_file, size=${bad_file_size}B, min=${MIN_BACKUP_SIZE_BYTES}B"
+		return 1
+	fi
+
+    echo "[INFO] All remote backup files meet minimum size ($MIN_BACKUP_SIZE_BYTES B)"
+    return 0
 }
 
 # ---------- Validation ----------
 
 is_valid_backup() {
+    echo "----------------------------------------"
+    echo "[INFO] Validating backups"
+
     # Local variables
     local -A remote_lists local_lists
     local remote_all_files local_all_files
@@ -152,16 +177,23 @@ is_valid_backup() {
         echo "ERROR: remote backup contains file(s) smaller than minimum size ($MIN_BACKUP_SIZE_BYTES bytes)"
         return 1
     fi
+    echo "[OK] Remote backup file sizes validated (min=${MIN_BACKUP_SIZE_BYTES}B)"
 
     # Store remote backup filenames in a variable and split
     remote_all_files=$(ssh "$REMOTE_HOST" "ls -1 $REMOTE_BACKUP_DIR/${ZIP_PREFIX}-*.zip 2>/dev/null")
     split_backup_types "$remote_all_files" remote_lists
+	echo "[OK] Remote backup file list loaded for type(s):"
+	echo "$remote_all_files"
 
     # Store local backup filenames in a variable and split
     local_all_files=$(ls -1 "$LOCAL_BACKUP_DIR/${ZIP_PREFIX}-*.zip" 2>/dev/null)
     split_backup_types "$local_all_files" local_lists
+	echo "[OK] Local backup file list loaded:"
+	echo "$local_all_files"
 
     for backup_type in daily weekly monthly; do
+        echo "[INFO] Checking backup type: $backup_type"
+
         # Set filename lists
         remote_list="${remote_lists[$backup_type]}"
         local_list="${local_lists[$backup_type]}"
@@ -173,6 +205,7 @@ is_valid_backup() {
             echo "ERROR: backup count mismatch for type=$backup_type: remote=$remote_count is less than local=$local_count"
             return 1
         fi
+        echo "[OK] Backup count valid: type=$backup_type remote=$remote_count local=$local_count"
 
         # Check latest dates
         remote_latest=$(echo "$remote_list" | get_latest_date)
@@ -181,7 +214,11 @@ is_valid_backup() {
             echo "ERROR: latest backup date mismatch for type=$backup_type: remote=$remote_latest is older than local=$local_latest"
             return 1
         fi
+        echo "[OK] Latest backup date valid: type=$backup_type date=$remote_latest"
     done
+
+    echo "[INFO] Backup validation successful"
+    echo "----------------------------------------"
 
     return 0
 }
@@ -190,17 +227,15 @@ is_valid_backup() {
 
 # Exit early if remote backup is not valid
 if ! is_valid_backup; then
-    echo "Backup validation failed - aborting"
+    echo "ERROR: Backup validation failed - aborting"
     exit 1
 fi
 
 # Note: no fallback logic for now
 
-echo "Remote backup valid - syncing data"
+echo "[INFO] Remote backup valid - syncing data"
 
 # Mirror remote data directory locally
-rsync -av --delete \
-    "$REMOTE_HOST:$REMOTE_BACKUP_DIR/" \
-    "$LOCAL_BACKUP_DIR/"
+rsync -avh --progress --stats --delete "$REMOTE_HOST:$REMOTE_BACKUP_DIR/" "$LOCAL_BACKUP_DIR/"
 
-echo "Backup sync complete"
+echo "[INFO] Backup sync complete"
