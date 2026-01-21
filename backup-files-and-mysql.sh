@@ -40,7 +40,7 @@ BACKUP_RETENTION_MONTHLY=2
 
 # Todo: 
 # validate config function
-# add logging
+# add success and error logging
 
 # ------------- Logic ---------------
 

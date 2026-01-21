@@ -16,6 +16,9 @@
 #       ├─ mybb_files_and_mysql-weekly-2026-01-14.zip
 #       └─ mybb_files_and_mysql-monthly-2026-01-01.zip
 
+# Todo: 
+# validate config function
+# add success and error logging
 
 # ---------- Configuration ----------
 
