@@ -127,6 +127,7 @@ BACKUP_MONTHLY=$(( BACKUP_RETENTION_MONTHLY > 0 ))
 MONTH=$(date +%d)
 DAY_WEEK=$(date +%u)
 
+# ! $FREQ calculated only once, this is wrong
 if [[ ( $MONTH -eq 1 ) && ( $BACKUP_MONTHLY == true ) ]];
         then
     FREQ='monthly'
@@ -139,48 +140,79 @@ elif [[ ( $DAY_WEEK -lt 7 ) && ( $BACKUP_DAILY == true ) ]];
 fi
 
 DATE=$(date +"%Y-%m-%d")
-ZIP_SUFFIX="$FREQ-$DATE"
 
-function local_only {
-    ZIP_PATH="$LOCAL_BACKUP_DIR/$ZIP_PREFIX-$ZIP_SUFFIX.zip"
+local_only {
+    ZIP_PATH="$LOCAL_BACKUP_DIR/$ZIP_PREFIX-$FREQ-$DATE.zip"
     ZIP_SOURCES=()
 
     TEMP_DB_DIR="$LOCAL_BACKUP_DIR/$MYSQL_ZIP_DIR"
     mkdir -p "$TEMP_DB_DIR"
+    echo "[INFO] Created temporary DB directory: $TEMP_DB_DIR"
 
     # Dump MySQL as plain .sql, path is on host
     docker exec "$DB_CONTAINER_NAME" sh -c 'mysqldump -u"$DB_USER" -p"$DB_PASS" "$DB_NAME"' > "$TEMP_DB_DIR/$DB_NAME.sql"
+    echo "[INFO] MySQL database dumped: $DB_NAME -> $TEMP_DB_DIR/$DB_NAME.sql"
 
-    # Add database
+    # Add database to zip sources
     ZIP_SOURCES+=("$TEMP_DB_DIR")
 
-    # Add folders 
+    # Add source code folders
     for SRC_CODE_DIR in "${!SRC_CODE_DIRS[@]}"; do
         SRC_CODE_DIR_PATH="${SRC_CODE_DIRS[$SRC_CODE_DIR]}"
         ZIP_SOURCES+=("$SRC_CODE_DIR_PATH")
+        echo "[INFO] Added folder to zip sources: $SRC_CODE_DIR_PATH"
     done
 
-    # Zip all
+    # Create zip archive
     zip -r "$ZIP_PATH" "${ZIP_SOURCES[@]}"
+    echo "[INFO] Created zip archive: $ZIP_PATH"
 
     # Cleanup temp DB dir
     rm -rf "$TEMP_DB_DIR"
+    echo "[INFO] Removed temporary DB directory: $TEMP_DB_DIR"
 
     # Move to backup directory
-    cd "$LOCAL_BACKUP_DIR/"
+    cd "$LOCAL_BACKUP_DIR/" || exit 1
 
     # Prune old backups based on retention
     ls -t | grep "$ZIP_NAME" | grep daily | sed -e 1,"$BACKUP_RETENTION_DAILY"d | xargs -d '\n' rm -R > /dev/null 2>&1
+    echo "[INFO] Pruned daily backups, keeping last $BACKUP_RETENTION_DAILY"
+
     ls -t | grep "$ZIP_NAME" | grep weekly | sed -e 1,"$BACKUP_RETENTION_WEEKLY"d | xargs -d '\n' rm -R > /dev/null 2>&1
+    echo "[INFO] Pruned weekly backups, keeping last $BACKUP_RETENTION_WEEKLY"
+
     ls -t | grep "$ZIP_NAME" | grep monthly | sed -e 1,"$BACKUP_RETENTION_MONTHLY"d | xargs -d '\n' rm -R > /dev/null 2>&1
+    echo "[INFO] Pruned monthly backups, keeping last $BACKUP_RETENTION_MONTHLY"
+
+    echo "[INFO] Local-only backup completed successfully: $ZIP_PATH"
 }
 
-if [[ ( $BACKUP_DAILY == true ) && ( ! -z "$BACKUP_RETENTION_DAILY" ) && ( $BACKUP_RETENTION_DAILY -ne 0 ) && ( $FREQ == daily ) ]]; then
+# Daily backup
+if [[ 
+    "$BACKUP_DAILY" == true && 
+    -n "$BACKUP_RETENTION_DAILY" && 
+    "$FREQ" == "daily" 
+]]; then
     local_only
+    echo "[INFO] Daily backup completed successfully."
 fi
-if [[ ( $BACKUP_WEEKLY == true ) && ( ! -z "$BACKUP_RETENTION_WEEKLY" ) && ( $BACKUP_RETENTION_WEEKLY -ne 0 ) && ( $FREQ == weekly ) ]]; then
+
+# Weekly backup
+if [[ 
+    "$BACKUP_WEEKLY" == true && 
+    -n "$BACKUP_RETENTION_WEEKLY" && 
+    "$FREQ" == "weekly" 
+]]; then
     local_only
+    echo "[INFO] Weekly backup completed successfully."
 fi
-if [[ ( $BACKUP_MONTHLY == true ) && ( ! -z "$BACKUP_RETENTION_MONTHLY" ) && ( $BACKUP_RETENTION_MONTHLY -ne 0 ) && ( $FREQ == monthly ) ]]; then
+
+# Monthly backup
+if [[ 
+    "$BACKUP_MONTHLY" == true && 
+    -n "$BACKUP_RETENTION_MONTHLY" && 
+    "$FREQ" == "monthly" 
+]]; then
     local_only
+    echo "[INFO] Monthly backup completed successfully."
 fi
