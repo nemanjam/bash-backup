@@ -26,14 +26,48 @@ REMOTE_HOST="arm2"
 REMOTE_BACKUP_DIR="~/traefik-proxy/apps/mybb/backup/data"
 LOCAL_BACKUP_DIR="../data"
 
-# Must match backup-files-and-mysql.sh
-ZIP_PREFIX="mybb_files_and_mysql"
-
 # Minimum valid backup size
 MIN_BACKUP_SIZE_MB=1
 MIN_BACKUP_SIZE_BYTES=$(( MIN_BACKUP_SIZE_MB * 1024 * 1024 ))
 
-# ---------- Utils ----------
+# ---------- Constants ----------
+
+# Must match backup-files-and-mysql.sh
+ZIP_PREFIX="mybb_files_and_mysql"
+
+# Script dir absolute path
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ---------- Validate config ------------
+
+is_valid_config() {
+    # Check SSH connectivity to remote host
+    if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_HOST" "true" >/dev/null 2>&1; then
+        echo "[ERROR] Cannot connect to remote host via SSH: REMOTE_HOST=$REMOTE_HOST" >&2
+        return 1
+    fi
+
+    # Check remote backup directory exists
+    if ! ssh "$REMOTE_HOST" "[ -d \"$REMOTE_BACKUP_DIR\" ]" >/dev/null 2>&1; then
+        echo "[ERROR] Remote backup directory does not exist: REMOTE_HOST=$REMOTE_HOST REMOTE_BACKUP_DIR=$REMOTE_BACKUP_DIR" >&2
+        return 1
+    fi
+
+    # Check local backup directory exists (relative to script location)
+    if [ ! -d "$SCRIPT_DIR/$LOCAL_BACKUP_DIR" ]; then
+        echo "[ERROR] Local backup directory does not exist: path=$SCRIPT_DIR/$LOCAL_BACKUP_DIR" >&2
+        return 1
+    fi
+
+    return 0
+}
+
+if ! is_valid_config; then
+    echo "[ERROR] Configuration validation failed. Aborting script." >&2
+    exit 1
+fi
+
+# ------------ Utils ------------
 
 # Extract latest YYYY-MM-DD date from backup filenames
 get_latest_date() {
@@ -102,7 +136,7 @@ check_file_size() {
 
 # ---------- Validation ----------
 
-is_valid() {
+is_valid_backup() {
     # Local variables
     local -A remote_lists local_lists
     local remote_all_files local_all_files
@@ -155,7 +189,7 @@ is_valid() {
 # ---------- Sync ----------
 
 # Exit early if remote backup is not valid
-if ! is_valid; then
+if ! is_valid_backup; then
     echo "Backup validation failed - aborting"
     exit 1
 fi

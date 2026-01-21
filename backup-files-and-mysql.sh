@@ -35,10 +35,6 @@ declare -A SRC_CODE_DIRS=(
     ["images/custom"]="images/custom"
 )
 
-# Zip vars
-MYSQL_ZIP_DIR="mysql_database"
-ZIP_PREFIX="mybb_files_and_mysql"
-
 # Retention
 MAX_RETENTION=5
 BACKUP_RETENTION_DAILY=3
@@ -49,12 +45,19 @@ BACKUP_RETENTION_MONTHLY=2
 # validate config function
 # add success and error logging
 
+# ---------- Constants ----------
+
+# Zip vars
+MYSQL_ZIP_DIR="mysql_database"
+# Must match backup-rsync-local.sh
+ZIP_PREFIX="mybb_files_and_mysql"
+
+# Script dir absolute path
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # ---------- Validate config ------------
 
 is_valid_config() {
-    local SCRIPT_DIR
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
     local non_zero_found=0
 
     # Check that MySQL container is running
@@ -145,11 +148,8 @@ function local_only {
     TEMP_DB_DIR="$LOCAL_BACKUP_DIR/$MYSQL_ZIP_DIR"
     mkdir -p "$TEMP_DB_DIR"
 
-    # Dump MySQL dump as plain .sql, path is on host
-    docker exec "$DB_CONTAINER_NAME" \
-        sh -c 'mysqldump -u"$DB_USER" -p"$DB_PASS" "$DB_NAME"' \
-         > "$TEMP_DB_DIR/$DB_NAME.sql"
-
+    # Dump MySQL as plain .sql, path is on host
+    docker exec "$DB_CONTAINER_NAME" sh -c 'mysqldump -u"$DB_USER" -p"$DB_PASS" "$DB_NAME"' > "$TEMP_DB_DIR/$DB_NAME.sql"
 
     # Add database
     ZIP_SOURCES+=("$TEMP_DB_DIR")

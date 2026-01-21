@@ -133,43 +133,18 @@ rsync -avh "$SOURCE" "$DESTINATION/$BUCKET_TYPE/$BUCKET"
 
 write me is_valid_config() bash function
 
-connect to mysql that runs inside this container and uses this vars
+check can connect to remote host with ssh
+REMOTE_HOST="arm2"
 
-# MySQL credentials
-USER=backup
-PASS=backup
-DB_NAME=project_sql
+check folder exists on this path exists on remote host
+REMOTE_BACKUP_DIR="~/traefik-proxy/apps/mybb/backup/data"
 
-# container
-  database:
-    image: mysql:8.0
-    container_name: mybb-database
-    restart: unless-stopped
-    env_file:
-      - .env
-    volumes:
-      - ./data/mysql-data:/var/lib/mysql
-      - ./conf/mysql.cnf:/etc/mysql/conf.d/custom.cnf:ro
-    networks:
-      - default
+check folder exists on this relative path
 
-validates that these folders on relative paths to script location exist
-
-# Dirs paths
-# Local folder is root, all other paths are relative to it
-# script located at ~/traefik-proxy/apps/mybb/backup/scripts
 LOCAL_BACKUP_DIR="../data"
 
-declare -A SRC_CODE_DIRS=(
-    ["inc"]="inc"
-    ["images/custom"]="images/custom"
-)
+add error logging before each exist, include relevant vars in messages when possible
 
-validates that these vars are 0 or positive numbers less than 5 (configurable), and at least one is not 0
-
-# Retention
-BACKUP_RETENTION_DAILY=3
-BACKUP_RETENTION_WEEKLY=2
-BACKUP_RETENTION_MONTHLY=2
+after fn definition call it and on fail exit script early with error message
 
 ```
