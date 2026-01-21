@@ -41,7 +41,7 @@ check_count() {
     local backup_type="$3"
 
     if (( remote_count < local_count )); then
-        echo "ERROR: remote has fewer $backup_type backups than local"
+        echo "ERROR: remote has fewer type=$backup_type backups than local, remote_count=$remote_count, local_count=$local_count"
         return 1
     fi
 }
@@ -53,7 +53,7 @@ check_date() {
     local backup_type="$3"
 
     if [[ -n "$local_latest" && "$remote_latest" < "$local_latest" ]]; then
-        echo "ERROR: remote $backup_type backup is older than local"
+        echo "ERROR: remote type=$backup_type backup is older than local, remote_latest=$remote_latest, local_latest=$local_latest"
         return 1
     fi
 }
@@ -82,22 +82,24 @@ check_file_size() {
 # ---------- Validation ----------
 
 is_valid() {
-	# Local variables
+    # Local variables
     local -A remote_lists local_lists
     local remote_all_files local_all_files
 
-	# Loop variables
+    # Loop variables
     local backup_type
     local remote_list local_list
     local remote_count local_count
     local remote_latest local_latest
 
     # Global size validation (run once)
-    check_file_size || return 1
+    if ! check_file_size; then
+        echo "ERROR: remote backup contains file(s) smaller than minimum size ($MIN_BACKUP_SIZE_BYTES bytes)"
+        return 1
+    fi
 
     # Store remote backup filenames in a variable and split
-    remote_all_files=$(ssh "$REMOTE_HOST" \
-        "ls -1 $REMOTE_DATA_DIR/${ZIP_PREFIX}-*.zip 2>/dev/null")
+    remote_all_files=$(ssh "$REMOTE_HOST" "ls -1 $REMOTE_DATA_DIR/${ZIP_PREFIX}-*.zip 2>/dev/null")
     split_backup_types "$remote_all_files" remote_lists
 
     # Store local backup filenames in a variable and split
@@ -105,21 +107,25 @@ is_valid() {
     split_backup_types "$local_all_files" local_lists
 
     for backup_type in daily weekly monthly; do
-		# Set filename lists
+        # Set filename lists
         remote_list="${remote_lists[$backup_type]}"
         local_list="${local_lists[$backup_type]}"
 
-		# Check counts
+        # Check counts
         remote_count=$(echo "$remote_list" | grep -c . || true)
         local_count=$(echo "$local_list" | grep -c . || true)
+        if ! check_count "$remote_count" "$local_count" "$backup_type"; then
+            echo "ERROR: backup count mismatch for type=$backup_type: remote=$remote_count is less than local=$local_count"
+            return 1
+        fi
 
-        check_count "$remote_count" "$local_count" "$backup_type" || return 1
-
-		# Check latest dates
+        # Check latest dates
         remote_latest=$(echo "$remote_list" | get_latest_date)
         local_latest=$(echo "$local_list" | get_latest_date)
-
-        check_date "$remote_latest" "$local_latest" "$backup_type" || return 1
+        if ! check_date "$remote_latest" "$local_latest" "$backup_type"; then
+            echo "ERROR: latest backup date mismatch for type=$backup_type: remote=$remote_latest is older than local=$local_latest"
+            return 1
+        fi
     done
 
     return 0
