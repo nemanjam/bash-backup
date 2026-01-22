@@ -4,9 +4,12 @@
 USER=backup
 PASS=backup
 DBNAME=project_sql
+
 BACKUP_DIR="/root/backup"
+
 DST_HOST="user@host"
 REMOTE_DST_DIR="/root/backup"
+
 BACKUP_DAILY=true # if set to false backup will not work
 BACKUP_WEEKLY=true # if set to false backup will not work
 BACKUP_MONTHLY=true # if set to false backup will not work
