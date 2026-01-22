@@ -198,31 +198,27 @@ create_retention_copies {
 }
 
 prune_old_backups {
-    ls -t "$LOCAL_BACKUP_DIR" \
-        | grep "$ZIP_PREFIX" \
-        | grep daily \
-        | sed -e 1,"$BACKUP_RETENTION_DAILY"d \
-        | xargs -d '\n' -I{} rm -R "$LOCAL_BACKUP_DIR/{}" > /dev/null 2>&1
+    for FREQ in daily weekly monthly; do
+        # Determine retention variable dynamically
+        RETENTION_VAR="BACKUP_RETENTION_${FREQ^^}"  # uppercase: daily -> DAILY
+        RETENTION="${!RETENTION_VAR}"
 
-    echo "[INFO] Pruned daily backups, keeping last $BACKUP_RETENTION_DAILY"
+        # Skip if retention is zero or unset
+        [[ -z "$RETENTION" || "$RETENTION" -le 0 ]] && continue
 
-    ls -t "$LOCAL_BACKUP_DIR" \
-        | grep "$ZIP_PREFIX" \
-        | grep weekly \
-        | sed -e 1,"$BACKUP_RETENTION_WEEKLY"d \
-        | xargs -d '\n' -I{} rm -R "$LOCAL_BACKUP_DIR/{}" > /dev/null 2>&1
+        # Find old backups and delete them
+        ls -t "$LOCAL_BACKUP_DIR" \
+            | grep "$ZIP_PREFIX" \
+            | grep "$FREQ" \
+            | sed -e 1,"$RETENTION"d \
+            | xargs -d '\n' -I{} rm -R "$LOCAL_BACKUP_DIR/{}" > /dev/null 2>&1
 
-    echo "[INFO] Pruned weekly backups, keeping last $BACKUP_RETENTION_WEEKLY"
-
-    ls -t "$LOCAL_BACKUP_DIR" \
-        | grep "$ZIP_PREFIX" \
-        | grep monthly \
-        | sed -e 1,"$BACKUP_RETENTION_MONTHLY"d \
-        | xargs -d '\n' -I{} rm -R "$LOCAL_BACKUP_DIR/{}" > /dev/null 2>&1
-
-    echo "[INFO] Pruned monthly backups, keeping last $BACKUP_RETENTION_MONTHLY"
+        echo "[INFO] Pruned $FREQ backups, keeping last $RETENTION"
+    done
 }
 
 create_backup
+
 create_retention_copies
+
 prune_old_backups
