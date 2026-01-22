@@ -1,5 +1,7 @@
 # Bash Backup Rotation Script
 
+Forked from: https://github.com/todiadiyatmo/bash-backup-rotation-script
+
 Source of truth is on server. Backup on remote server and sync locally. Only remote server has static IP.
 
 ## Features
