@@ -24,6 +24,8 @@
 
 REMOTE_HOST="arm2"
 REMOTE_BACKUP_DIR="~/traefik-proxy/apps/mybb/backup/data"
+
+# Note: all commands run from script dir, NEVER call cd, for relative LOCAL paths to work
 LOCAL_BACKUP_DIR="../data"
 
 # Minimum valid backup size
@@ -35,7 +37,7 @@ MIN_BACKUP_SIZE_BYTES=$(( MIN_BACKUP_SIZE_MB * 1024 * 1024 ))
 # Must match backup-files-and-mysql.sh
 ZIP_PREFIX="mybb_files_and_mysql"
 
-# Script dir absolute path
+# Script dir absolute path, unused
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ---------- Validate config ------------
@@ -59,7 +61,7 @@ is_valid_config() {
     echo "[OK] Remote backup directory exists: $REMOTE_BACKUP_DIR"
 
     # Check local backup directory exists
-    if [ ! -d "$SCRIPT_DIR/$LOCAL_BACKUP_DIR" ]; then
+    if [ ! -d "$$LOCAL_BACKUP_DIR" ]; then
         echo "[ERROR] Local backup directory does not exist: path=$SCRIPT_DIR/$LOCAL_BACKUP_DIR" >&2
         return 1
     fi
@@ -70,11 +72,6 @@ is_valid_config() {
 
     return 0
 }
-
-if ! is_valid_config; then
-    echo "[ERROR] Configuration validation failed. Aborting script." >&2
-    exit 1
-fi
 
 # ------------ Utils ------------
 
@@ -238,6 +235,11 @@ is_valid_backup() {
 }
 
 # ---------- Sync ----------
+
+if ! is_valid_config; then
+    echo "[ERROR] Configuration validation failed. Aborting script." >&2
+    exit 1
+fi
 
 # Exit early if remote backup is not valid
 if ! is_valid_backup; then

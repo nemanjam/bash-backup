@@ -43,10 +43,6 @@ BACKUP_RETENTION_DAILY=3
 BACKUP_RETENTION_WEEKLY=2
 BACKUP_RETENTION_MONTHLY=2
 
-# Todo: 
-# validate config function
-# add success and error logging
-
 # ---------- Constants ----------
 
 # Zip vars
@@ -89,14 +85,14 @@ is_valid_config() {
 
     # Check local backup directory exists
     if [ ! -d "$LOCAL_BACKUP_DIR" ]; then
-        echo "[ERROR] Local backup directory missing: path=$LOCAL_BACKUP_DIR" >&2
+        echo "[ERROR] Local backup directory missing: path=$SCRIPT_DIR/$LOCAL_BACKUP_DIR" >&2
         return 1
     fi
 
     # Check source code directories exist
     for dir in "${SRC_CODE_DIRS[@]}"; do
         if [ ! -d "$LOCAL_BACKUP_DIR/$dir" ]; then
-            echo "[ERROR] Source directory missing: path=$LOCAL_BACKUP_DIR/$dir" >&2
+            echo "[ERROR] Source directory missing: path=$SCRIPT_DIR/$LOCAL_BACKUP_DIR/$dir" >&2
             return 1
         fi
     done
@@ -125,11 +121,6 @@ is_valid_config() {
 
     return 0
 }
-
-if ! is_valid_config; then
-    echo "[ERROR] Configuration validation failed. Aborting backup." >&2
-    exit 1
-fi
 
 # ------------- Logic ---------------
 
@@ -216,6 +207,13 @@ prune_old_backups {
         echo "[INFO] Pruned $FREQ backups, keeping last $RETENTION"
     done
 }
+
+# ---------- Main script ----------
+
+if ! is_valid_config; then
+    echo "[ERROR] Configuration validation failed. Aborting backup." >&2
+    exit 1
+fi
 
 create_backup
 
