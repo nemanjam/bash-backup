@@ -131,20 +131,21 @@ rsync -avh "$SOURCE" "$DESTINATION/$BUCKET_TYPE/$BUCKET"
 
 # ------------------
 
-write me is_valid_config() bash function
+can you include relative path in ls command to avoid cd? script never should run cd
 
-check can connect to remote host with ssh
-REMOTE_HOST="arm2"
+prune_old_backups {
+    # Move to backup directory
+    cd "$SCRIPT_DIR/$LOCAL_BACKUP_DIR" || exit 1
 
-check folder exists on this path exists on remote host
-REMOTE_BACKUP_DIR="~/traefik-proxy/apps/mybb/backup/data"
+    # Prune old backups based on retention
+    ls -t | grep "$ZIP_PREFIX" | grep daily | sed -e 1,"$BACKUP_RETENTION_DAILY"d | xargs -d '\n' rm -R > /dev/null 2>&1
+    echo "[INFO] Pruned daily backups, keeping last $BACKUP_RETENTION_DAILY"
 
-check folder exists on this relative path
+    ls -t | grep "$ZIP_PREFIX" | grep weekly | sed -e 1,"$BACKUP_RETENTION_WEEKLY"d | xargs -d '\n' rm -R > /dev/null 2>&1
+    echo "[INFO] Pruned weekly backups, keeping last $BACKUP_RETENTION_WEEKLY"
 
-LOCAL_BACKUP_DIR="../data"
-
-add error logging before each exist, include relevant vars in messages when possible
-
-after fn definition call it and on fail exit script early with error message
+    ls -t | grep "$ZIP_PREFIX" | grep monthly | sed -e 1,"$BACKUP_RETENTION_MONTHLY"d | xargs -d '\n' rm -R > /dev/null 2>&1
+    echo "[INFO] Pruned monthly backups, keeping last $BACKUP_RETENTION_MONTHLY"
+}
 
 ```

@@ -25,6 +25,8 @@ DB_NAME="mybb"
 DB_USER="mybbuser"
 DB_PASS="password"
 
+# Note: all commands run from script dir, NEVER call cd, for relative paths to work
+
 # Dirs paths
 # Local folder is root, all other paths are relative to it
 # script located at ~/traefik-proxy/apps/mybb/backup/scripts
@@ -51,8 +53,20 @@ BACKUP_RETENTION_MONTHLY=2
 MYSQL_ZIP_DIR="mysql_database"
 # Must match backup-rsync-local.sh
 ZIP_PREFIX="mybb_files_and_mysql"
+FREQ_PLACEHOLDER='frequency'
 
-# Script dir absolute path
+DATE=$(date +"%Y-%m-%d")
+ZIP_PATH="$LOCAL_BACKUP_DIR/$ZIP_PREFIX-$FREQ_PLACEHOLDER-$DATE.zip"
+
+# Current day and weekday
+MONTH=$(date +%d)
+DAY_WEEK=$(date +%u)
+
+BACKUP_DAILY=$(( BACKUP_RETENTION_DAILY > 0 ))
+BACKUP_WEEKLY=$(( BACKUP_RETENTION_WEEKLY > 0 ))
+BACKUP_MONTHLY=$(( BACKUP_RETENTION_MONTHLY > 0 ))
+
+# Script dir absolute path, unused
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ---------- Validate config ------------
@@ -74,15 +88,15 @@ is_valid_config() {
     fi
 
     # Check local backup directory exists
-    if [ ! -d "$SCRIPT_DIR/$LOCAL_BACKUP_DIR" ]; then
-        echo "[ERROR] Local backup directory missing: path=$SCRIPT_DIR/$LOCAL_BACKUP_DIR" >&2
+    if [ ! -d "$LOCAL_BACKUP_DIR" ]; then
+        echo "[ERROR] Local backup directory missing: path=$LOCAL_BACKUP_DIR" >&2
         return 1
     fi
 
     # Check source code directories exist
     for dir in "${SRC_CODE_DIRS[@]}"; do
-        if [ ! -d "$SCRIPT_DIR/$LOCAL_BACKUP_DIR/$dir" ]; then
-            echo "[ERROR] Source directory missing: path=$SCRIPT_DIR/$LOCAL_BACKUP_DIR/$dir" >&2
+        if [ ! -d "$LOCAL_BACKUP_DIR/$dir" ]; then
+            echo "[ERROR] Source directory missing: path=$LOCAL_BACKUP_DIR/$dir" >&2
             return 1
         fi
     done
@@ -119,31 +133,7 @@ fi
 
 # ------------- Logic ---------------
 
-BACKUP_DAILY=$(( BACKUP_RETENTION_DAILY > 0 ))
-BACKUP_WEEKLY=$(( BACKUP_RETENTION_WEEKLY > 0 ))
-BACKUP_MONTHLY=$(( BACKUP_RETENTION_MONTHLY > 0 ))
-
-# Current day and weekday
-MONTH=$(date +%d)
-DAY_WEEK=$(date +%u)
-
-# ! $FREQ calculated only once, this is wrong
-# create only daily backup and copy and rename for other frequencies
-if [[ ( $MONTH -eq 1 ) && ( $BACKUP_MONTHLY == true ) ]];
-        then
-    FREQ='monthly'
-elif [[ ( $DAY_WEEK -eq 7 ) && ( $BACKUP_WEEKLY == true ) ]];
-        then
-    FREQ='weekly'
-elif [[ ( $DAY_WEEK -lt 7 ) && ( $BACKUP_DAILY == true ) ]];
-        then
-    FREQ='daily'
-fi
-
-DATE=$(date +"%Y-%m-%d")
-
-local_only {
-    ZIP_PATH="$LOCAL_BACKUP_DIR/$ZIP_PREFIX-$FREQ-$DATE.zip"
+create_backup {
     ZIP_SOURCES=()
 
     TEMP_DB_DIR="$LOCAL_BACKUP_DIR/$MYSQL_ZIP_DIR"
@@ -172,48 +162,72 @@ local_only {
     rm -rf "$TEMP_DB_DIR"
     echo "[INFO] Removed temporary DB directory: $TEMP_DB_DIR"
 
-    # Move to backup directory
-    cd "$LOCAL_BACKUP_DIR/" || exit 1
-
-    # Prune old backups based on retention
-    ls -t | grep "$ZIP_NAME" | grep daily | sed -e 1,"$BACKUP_RETENTION_DAILY"d | xargs -d '\n' rm -R > /dev/null 2>&1
-    echo "[INFO] Pruned daily backups, keeping last $BACKUP_RETENTION_DAILY"
-
-    ls -t | grep "$ZIP_NAME" | grep weekly | sed -e 1,"$BACKUP_RETENTION_WEEKLY"d | xargs -d '\n' rm -R > /dev/null 2>&1
-    echo "[INFO] Pruned weekly backups, keeping last $BACKUP_RETENTION_WEEKLY"
-
-    ls -t | grep "$ZIP_NAME" | grep monthly | sed -e 1,"$BACKUP_RETENTION_MONTHLY"d | xargs -d '\n' rm -R > /dev/null 2>&1
-    echo "[INFO] Pruned monthly backups, keeping last $BACKUP_RETENTION_MONTHLY"
-
-    echo "[INFO] Local-only backup completed successfully: $ZIP_PATH"
+    echo "[INFO] Local-only backup created successfully: $ZIP_PATH"
 }
 
-# Daily backup
-if [[ 
-    "$BACKUP_DAILY" == true && 
-    -n "$BACKUP_RETENTION_DAILY" && 
-    "$FREQ" == "daily" 
-]]; then
-    local_only
-    echo "[INFO] Daily backup completed successfully."
-fi
+create_retention_copies {
+    local IS_WEEKLY=$(($DAY_WEEK -eq 7))
+    local IS_MONTHLY=$(($MONTH -eq 1))
 
-# Weekly backup
-if [[ 
-    "$BACKUP_WEEKLY" == true && 
-    -n "$BACKUP_RETENTION_WEEKLY" && 
-    "$FREQ" == "weekly" 
-]]; then
-    local_only
-    echo "[INFO] Weekly backup completed successfully."
-fi
+    if [[ ! -f "$ZIP_PATH" ]]; then
+        echo "[ERROR] Backup file does not exist: $ZIP_PATH"
+        return 1
+    fi
 
-# Monthly backup
-if [[ 
-    "$BACKUP_MONTHLY" == true && 
-    -n "$BACKUP_RETENTION_MONTHLY" && 
-    "$FREQ" == "monthly" 
-]]; then
-    local_only
-    echo "[INFO] Monthly backup completed successfully."
-fi
+    # Daily backup, runs always
+    if [[ "$BACKUP_DAILY" == true ]]; then
+        DAILY_FILENAME="${ZIP_PATH/frequency/daily}"
+        cp "$ZIP_PATH" "$DAILY_FILENAME"
+
+        echo "[INFO] Daily backup copied successfully: $DAILY_FILENAME"
+    fi
+
+    # Weekly backup
+    if [[ "$IS_WEEKLY" -eq 1 && "$BACKUP_WEEKLY" == true ]]; then
+        WEEKLY_FILENAME="${ZIP_PATH/frequency/weekly}"
+        cp "$ZIP_PATH" "$WEEKLY_FILENAME"
+
+        echo "[INFO] Weekly backup copied successfully: $WEEKLY_FILENAME"
+    fi
+
+    # Monthly backup
+    if [[ "$IS_MONTHLY" -eq 1 && "$BACKUP_MONTHLY" == true ]]; then
+        MONTHLY_FILENAME="${ZIP_PATH/frequency/monthly}"
+        cp "$ZIP_PATH" "$MONTHLY_FILENAME"
+
+        echo "[INFO] Monthly backup copied successfully: $MONTHLY_FILENAME"
+    fi
+
+    rm -rf "$ZIP_PATH"
+    echo "[INFO] Removed temporary frequency backup file: $ZIP_PATH"
+}
+
+prune_old_backups {
+    ls -t "$LOCAL_BACKUP_DIR" \
+        | grep "$ZIP_PREFIX" \
+        | grep daily \
+        | sed -e 1,"$BACKUP_RETENTION_DAILY"d \
+        | xargs -d '\n' -I{} rm -R "$LOCAL_BACKUP_DIR/{}" > /dev/null 2>&1
+
+    echo "[INFO] Pruned daily backups, keeping last $BACKUP_RETENTION_DAILY"
+
+    ls -t "$LOCAL_BACKUP_DIR" \
+        | grep "$ZIP_PREFIX" \
+        | grep weekly \
+        | sed -e 1,"$BACKUP_RETENTION_WEEKLY"d \
+        | xargs -d '\n' -I{} rm -R "$LOCAL_BACKUP_DIR/{}" > /dev/null 2>&1
+
+    echo "[INFO] Pruned weekly backups, keeping last $BACKUP_RETENTION_WEEKLY"
+
+    ls -t "$LOCAL_BACKUP_DIR" \
+        | grep "$ZIP_PREFIX" \
+        | grep monthly \
+        | sed -e 1,"$BACKUP_RETENTION_MONTHLY"d \
+        | xargs -d '\n' -I{} rm -R "$LOCAL_BACKUP_DIR/{}" > /dev/null 2>&1
+        
+    echo "[INFO] Pruned monthly backups, keeping last $BACKUP_RETENTION_MONTHLY"
+}
+
+create_backup
+create_retention_copies
+prune_old_backups
