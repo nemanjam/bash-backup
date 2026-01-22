@@ -166,37 +166,32 @@ create_backup {
 }
 
 create_retention_copies {
-    local IS_WEEKLY=$(($DAY_WEEK -eq 7))
-    local IS_MONTHLY=$(($MONTH -eq 1))
+    local IS_WEEKLY=$(( DAY_WEEK == 7 ))
+    local IS_MONTHLY=$(( MONTH == 1 ))
 
     if [[ ! -f "$ZIP_PATH" ]]; then
         echo "[ERROR] Backup file does not exist: $ZIP_PATH"
         return 1
     fi
 
-    # Daily backup, runs always
-    if [[ "$BACKUP_DAILY" == true ]]; then
-        DAILY_FILENAME="${ZIP_PATH/frequency/daily}"
-        cp "$ZIP_PATH" "$DAILY_FILENAME"
+    for FREQ in daily weekly monthly; do
+        case "$FREQ" in
+            daily)
+                [[ "$BACKUP_DAILY" == true ]] || continue
+                ;;
+            weekly)
+                [[ "$IS_WEEKLY" -eq 1 && "$BACKUP_WEEKLY" == true ]] || continue
+                ;;
+            monthly)
+                [[ "$IS_MONTHLY" -eq 1 && "$BACKUP_MONTHLY" == true ]] || continue
+                ;;
+        esac
 
-        echo "[INFO] Daily backup copied successfully: $DAILY_FILENAME"
-    fi
+        TARGET_FILE="${ZIP_PATH/frequency/$FREQ}"
+        cp "$ZIP_PATH" "$TARGET_FILE"
 
-    # Weekly backup
-    if [[ "$IS_WEEKLY" -eq 1 && "$BACKUP_WEEKLY" == true ]]; then
-        WEEKLY_FILENAME="${ZIP_PATH/frequency/weekly}"
-        cp "$ZIP_PATH" "$WEEKLY_FILENAME"
-
-        echo "[INFO] Weekly backup copied successfully: $WEEKLY_FILENAME"
-    fi
-
-    # Monthly backup
-    if [[ "$IS_MONTHLY" -eq 1 && "$BACKUP_MONTHLY" == true ]]; then
-        MONTHLY_FILENAME="${ZIP_PATH/frequency/monthly}"
-        cp "$ZIP_PATH" "$MONTHLY_FILENAME"
-
-        echo "[INFO] Monthly backup copied successfully: $MONTHLY_FILENAME"
-    fi
+        echo "[INFO] $FREQ backup copied successfully: $TARGET_FILE"
+    done
 
     rm -rf "$ZIP_PATH"
     echo "[INFO] Removed temporary frequency backup file: $ZIP_PATH"
@@ -224,7 +219,7 @@ prune_old_backups {
         | grep monthly \
         | sed -e 1,"$BACKUP_RETENTION_MONTHLY"d \
         | xargs -d '\n' -I{} rm -R "$LOCAL_BACKUP_DIR/{}" > /dev/null 2>&1
-        
+
     echo "[INFO] Pruned monthly backups, keeping last $BACKUP_RETENTION_MONTHLY"
 }
 
