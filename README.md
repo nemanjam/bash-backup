@@ -13,12 +13,9 @@ Source of truth is on server. Backup on remote server and sync locally. Only rem
 ## Restore MySQL backup in Docker
 
 ```bash
-# Create a new database inside the container
-# -p pdb_password without space, intentionally
-docker exec -i mybb-database mysql -u db_user -pdb_password -e "CREATE DATABASE new_db_name CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-# Example
-docker exec -i mybb-database mysql -u mybbuser -pmybbpass -e "CREATE DATABASE mybb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+# Run just MySQL container
+# This creates new database by default
+docker compose up -d database
 
 # Import the dump into the new database
 # -p pdb_password without space, intentionally
@@ -26,6 +23,14 @@ docker exec -i mybb-database mysql -u db_user -pdb_password new_db_name < .path/
 
 # Example
 docker exec -i mybb-database mysql -u mybbuser -pmybbpass mybb < ./mybb.sql
+
+# NO NEED, created by default
+# Create a new database inside the container
+# -p pdb_password without space, intentionally
+docker exec -i mybb-database mysql -u db_user -pdb_password -e "CREATE DATABASE new_db_name CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# Example
+docker exec -i mybb-database mysql -u mybbuser -pmybbpass -e "CREATE DATABASE mybb CHARACTER SET utf8
 ```
 
 ## Todo
