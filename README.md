@@ -33,6 +33,46 @@ docker exec -i mybb-database mysql -u db_user -pdb_password -e "CREATE DATABASE 
 docker exec -i mybb-database mysql -u mybbuser -pmybbpass -e "CREATE DATABASE mybb CHARACTER SET utf8
 ```
 
+## Cron
+
+Edit cron:
+
+```bash
+crontab -e
+
+# Edit ...
+
+# Make scripts executable
+
+# Remote
+chmod +x /home/ubuntu/traefik-proxy/apps/mybb/backup/scripts/run-backup-files-and-mysql.sh
+
+# Local
+chmod +x /home/username/Desktop/mybb-backup/scripts/run-backup-rsync.sh
+```
+
+Since cron has no environment, always use absolute paths for script paths (no `~/` for home dir).
+
+Lines to add:
+
+```bash
+# Remote
+
+# Set Belgrade time zone fo all crons
+TZ=Europe/Belgrade
+
+# Create backup every day at 23:30 Belgrade time
+30 23 * * * /home/ubuntu/traefik-proxy/apps/mybb/backup/scripts/run-backup-files-and-mysql.sh
+
+# Local
+
+# Set Belgrade time zone fo all crons
+TZ=Europe/Belgrade
+
+# Sync backup every day at 23:45 Belgrade time
+45 23 * * * /home/username/Desktop/mybb-backup/scripts/run-backup-rsync.sh
+```
+
 ## Todo
 
 - Add strategy to keep source of truth for backup locally and create only temp file on server through SSH.
